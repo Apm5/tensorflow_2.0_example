@@ -1,4 +1,4 @@
-###Realization of CNN in different styles
+### Realization of CNN in different styles
 
 In CNN_keras_basic.py, CNN are implemented by basic keras style. 
 
