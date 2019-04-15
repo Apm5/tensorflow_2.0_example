@@ -16,7 +16,7 @@ def load_data(PATH):
     return train_images, train_labels, test_images, test_labels
 
 if __name__ == '__main__':
-    tf.config.gpu.set_per_process_memory_growth(enabled=True)
+    tf.config.gpu.set_per_process_memory_growth(enabled=True)  # gpu memory set
 
     (train_images, train_labels, test_images, test_labels) = load_data('MNIST')
 
