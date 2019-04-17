@@ -14,7 +14,7 @@ Reimplement convolution layer
 
 Use unofficial evaluation and loss function
 
-use unofficial train function
+Use unofficial train function
 
 #### TODO:
 
