@@ -8,9 +8,9 @@ Models and layers are as follows:
 
 #### DONE:
 
-reimplement fully connected layer
+Reimplement fully connected layer
 
-reimplement convolution layer
+Reimplement convolution layer
 
 use unofficial evaluation and loss function
 
