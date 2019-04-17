@@ -20,8 +20,9 @@ def load_data(PATH):
 
 class FullyConnect(tf.keras.layers.Layer):
 
-    def __init__(self, output_dim, use_bias=True, **kwargs):
+    def __init__(self, output_dim, activation=tf.nn.relu, use_bias=True, **kwargs):
         self.output_dim = output_dim
+        self.activation = activation
         self.use_bias = use_bias
         super(FullyConnect, self).__init__(**kwargs)
 
@@ -44,6 +45,7 @@ class FullyConnect(tf.keras.layers.Layer):
             output = tf.add(tf.matmul(inputs, self.kernel), self.bias)
         else:
             output = tf.matmul(inputs, self.kernel)
+        output = self.activation(output)
         return output
 
     def compute_output_shape(self, input_shape):
@@ -53,9 +55,11 @@ class FullyConnect(tf.keras.layers.Layer):
 
 class Conv2D(tf.keras.layers.Layer):
 
-    def __init__(self, output_dim, kernel=(3, 3), use_bias=True, strides=(1, 1, 1, 1), padding='VALID', **kwargs):
+    def __init__(self, output_dim, kernel=(3, 3), activation=tf.nn.relu,
+                 use_bias=True, strides=(1, 1, 1, 1), padding='VALID', **kwargs):
         self.output_dim = output_dim
         self.kernel = kernel
+        self.activation = activation
         self.use_bias = use_bias
         self.strides = strides
         self.padding = padding
@@ -80,6 +84,7 @@ class Conv2D(tf.keras.layers.Layer):
             output = tf.add(tf.nn.conv2d(inputs, self.kernel, strides=self.strides, padding=self.padding), self.bias)
         else:
             output = tf.nn.conv2d(inputs, self.kernel, strides=self.strides, padding=self.padding)
+        output = self.activation(output)
         return output
 
     def compute_output_shape(self, input_shape):
@@ -103,18 +108,13 @@ if __name__ == '__main__':
     with tf.device('/gpu:1'):  # If no GPU, comment on this line
         input = layers.Input(shape=(28, 28, 1))
         net = Conv2D(output_dim=32)(input)
-        net = tf.nn.relu(net)
         net = layers.MaxPooling2D((2, 2))(net)
         net = Conv2D(output_dim=64)(net)
-        net = tf.nn.relu(net)
         net = layers.MaxPooling2D((2, 2))(net)
         net = Conv2D(output_dim=64)(net)
-        net = tf.nn.relu(net)
         net = layers.Flatten()(net)
         net = FullyConnect(output_dim=64)(net)
-        net = tf.nn.relu(net)
-        net = FullyConnect(output_dim=10)(net)
-        output = tf.nn.softmax(net)
+        output = FullyConnect(output_dim=10, activation=tf.nn.softmax)(net)
         model = models.Model(inputs=input, outputs=output)
         # show
         model.summary()
