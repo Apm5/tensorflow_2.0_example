@@ -8,9 +8,13 @@ Models and layers are as follows:
 
 #### DONE:
 
-fully connected layer
+reimplement fully connected layer
 
-convolution layer
+reimplement convolution layer
+
+use unofficial evaluation and loss function
+
+use unofficial train function
 
 #### TODO:
 
