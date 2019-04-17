@@ -12,7 +12,7 @@ Reimplement fully connected layer
 
 Reimplement convolution layer
 
-Use unofficial evaluation and loss function
+unofficial evaluation and loss function
 
 Use unofficial train function
 
