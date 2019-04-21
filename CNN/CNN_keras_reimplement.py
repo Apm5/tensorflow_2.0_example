@@ -34,7 +34,7 @@ class FullyConnect(tf.keras.layers.Layer):
                                       initializer='uniform',
                                       trainable=True)
         if self.use_bias:
-            self.bias = self.add_weight(name='kernel',
+            self.bias = self.add_weight(name='bias',
                                           shape=[self.output_dim,],
                                           initializer='zeros',
                                           trainable=True)
@@ -73,7 +73,7 @@ class Conv2D(tf.keras.layers.Layer):
                                       initializer='normal',
                                       trainable=True)
         if self.use_bias:
-            self.bias = self.add_weight(name='kernel',
+            self.bias = self.add_weight(name='bias',
                                         shape=[self.output_dim,],
                                         initializer='zeros',
                                         trainable=True)

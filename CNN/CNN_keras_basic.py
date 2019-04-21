@@ -18,7 +18,7 @@ def load_data(PATH):
 if __name__ == '__main__':
     tf.config.gpu.set_per_process_memory_growth(enabled=True)  # gpu memory set
 
-    (train_images, train_labels, test_images, test_labels) = load_data('MNIST')
+    (train_images, train_labels, test_images, test_labels) = load_data('/home/user/Documents/dataset/MNIST')
 
     with tf.device('/gpu:1'):  # If no GPU, comment on this line
         model = models.Sequential()

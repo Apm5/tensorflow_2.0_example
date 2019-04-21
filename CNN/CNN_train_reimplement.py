@@ -35,7 +35,7 @@ class FullyConnect(tf.keras.layers.Layer):
                                       initializer='uniform',
                                       trainable=True)
         if self.use_bias:
-            self.bias = self.add_weight(name='kernel',
+            self.bias = self.add_weight(name='bias',
                                           shape=[self.output_dim,],
                                           initializer='zeros',
                                           trainable=True)
@@ -74,7 +74,7 @@ class Conv2D(tf.keras.layers.Layer):
                                       initializer='normal',
                                       trainable=True)
         if self.use_bias:
-            self.bias = self.add_weight(name='kernel',
+            self.bias = self.add_weight(name='bias',
                                         shape=[self.output_dim,],
                                         initializer='zeros',
                                         trainable=True)
@@ -120,7 +120,7 @@ def test(model, x, y):
 if __name__ == '__main__':
     # tf.keras.backend.set_floatx('float64')
     tf.config.gpu.set_per_process_memory_growth(enabled=True)  # gpu memory set
-    (train_images, train_labels, test_images, test_labels) = load_data('MNIST')
+    (train_images, train_labels, test_images, test_labels) = load_data('/home/user/Documents/dataset/MNIST')
 
     with tf.device('/gpu:1'):  # If no GPU, comment on this line
         input = layers.Input(shape=(28, 28, 1))
