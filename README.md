@@ -8,25 +8,25 @@ Models and layers are as follows:
 
 #### DONE:
 
-Reimplement fully connected layer
+[Reimplement fully connected layer](https://github.com/Apm5/tensorflow_2.0_example/blob/master/CNN/CNN_keras_reimplement.py)
 
-Reimplement convolution layer 
+[Reimplement convolution layer](https://github.com/Apm5/tensorflow_2.0_example/blob/master/CNN/CNN_keras_reimplement.py)
 
-Use unofficial evaluation and loss function
+[Use unofficial evaluation and loss function](https://github.com/Apm5/tensorflow_2.0_example/blob/master/CNN/CNN_train_reimplement.py)
 
-Use unofficial train function
+[Use unofficial train function](https://github.com/Apm5/tensorflow_2.0_example/blob/master/CNN/CNN_train_reimplement.py)
+
+[Batch normalization](https://github.com/Apm5/tensorflow_2.0_example/blob/master/CNN/BatchNormalization.py)
+
+[VGG-16](https://github.com/Apm5/tensorflow_2.0_example/blob/master/CNN/VGG.py)
 
 #### TODO:
 
 tf.data
 
-Batch normalization
-
 Gabor convolution
 
 LSTM
-
-VGG
 
 ResNet
 
