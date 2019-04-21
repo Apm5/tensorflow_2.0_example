@@ -52,4 +52,4 @@ self.add_update(variance_update, inputs=True)
 #### VGG-16 model
 In [VGG.py](https://github.com/Apm5/tensorflow_2.0_example/blob/master/CNN/VGG.py), the classical VGG-16 is implemented. Usually convolution layer is followed by batch normalization, activation, pooling and dropout layers in order. So they are combined into `ConvBlock2D`. 
 
-To specify a different behavior in training and test, the subclass `Model` is needed, which have a `train` argument in `call)()`. However, Model.summary() doesn't work. Just don't know why. The `output shape` is `multiple` all. You can add `print(net.shape)` in `call` to show it.
+To specify a different behavior in training and test, the subclass `Model` is needed, which have a `train` argument in `call()`. However, Model.summary() doesn't work. Just don't know why. The `output shape` is `multiple` all. You can add `print(net.shape)` in `call()` to show it.
