@@ -121,7 +121,6 @@ if __name__ == '__main__':
     # tf.keras.backend.set_floatx('float64')
     tf.config.gpu.set_per_process_memory_growth(enabled=True)  # gpu memory set
     (train_images, train_labels, test_images, test_labels) = load_data('/home/user/Documents/dataset/MNIST')
-
     with tf.device('/gpu:1'):  # If no GPU, comment on this line
         input = layers.Input(shape=(28, 28, 1))
         net = Conv2D(output_dim=32)(input)
@@ -148,21 +147,19 @@ if __name__ == '__main__':
         for epoch_num in range(epoch):
             sum_loss = 0
             sum_num = 0
-            cnt = 0
             start_time = time.time()
-            for x, y in zip(train_images, train_labels):
+            for i, (x, y) in enumerate(zip(train_images, train_labels), 1):
                 loss, prediction = train(model, x, y, optimizer)
                 correct_num = Accuracy(y, prediction) * 32
                 sum_loss += loss
                 sum_num += correct_num
 
-                cnt += 1
-                if cnt % 100 == 0:
-                    print('%d/%d, loss:%f, accuracy:%f'%(cnt, 1875, sum_loss/cnt/32, sum_num/cnt/32))
+                if i % 100 == 0:
+                    print('%d/%d, loss:%f, accuracy:%f'%(i, 1875, sum_loss/i/32, sum_num/i/32))
             end_time = time.time()
             print('epoch:%d, time:%.2f, loss:%f, accuracy:%f' %
                   (epoch_num, end_time-start_time, sum_loss/60000, sum_num/60000))
-
+            # model.save_weights('weights')
         # test
         test_images = test_images.reshape((625, 16, 28, 28, 1)).astype(np.float32)
         test_labels = test_labels.reshape((625, 16, 10)).astype(np.float32)
@@ -171,15 +168,14 @@ if __name__ == '__main__':
         sum_num = 0
         cnt = 0
         start_time = time.time()
-        for x, y in zip(test_images, test_labels):
+        for i, (x, y) in enumerate(zip(test_images, test_labels), 1):
             loss, prediction = test(model, x, y)
             correct_num = Accuracy(y, prediction) * 16
             sum_loss += loss
             sum_num += correct_num
 
-            cnt += 1
-            if cnt % 100 == 0:
-                print('%d/%d, loss:%f, accuracy:%f' % (cnt, 625, sum_loss / cnt / 16, sum_num / cnt / 16))
+            if i % 100 == 0:
+                print('%d/%d, loss:%f, accuracy:%f' % (i, 625, sum_loss / i / 16, sum_num / i / 16))
         end_time = time.time()
         print('test, time:%.2f, loss:%f, accuracy:%f' %
               (end_time - start_time, sum_loss / 10000, sum_num / 10000))
