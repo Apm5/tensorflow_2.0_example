@@ -2,13 +2,7 @@ import tensorflow as tf
 import numpy as np
 import config
 from Layers import ConvBlock2D, Conv2D
-
-def load_data(path, name_list):
-
-
-
-
-    return images, labels
+from load_data import load_data
 
 class Model(tf.keras.models.Model):
     """
@@ -117,10 +111,10 @@ def loc_loss(loc_true, loc_pred):
 
 
 @tf.function
-def train(model, images, labels, optimizer):
+def train(model, images, cls_true, loc_true, optimizer):
     with tf.GradientTape() as tape:
-        cls, loc = model(images, train=True)
-        loss = cls_loss(labels[:, :, 4], cls) + loc_loss(labels[:, :, 0:4], loc)
+        cls_pred, loc_pred = model(images, train=True)
+        loss = cls_loss(cls_true, cls_pred) + loc_loss(loc_true, loc_pred)
         gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
     return loss
@@ -129,8 +123,12 @@ if __name__ == '__main__':
     tf.config.gpu.set_per_process_memory_growth(enabled=True)  # gpu memory set
     model = Model(10)
     x = np.random.rand(4, 300, 300, 3)
-    with tf.device('/gpu:1'):
+    with tf.device('/gpu:2'):
         print(config.scale)
         scores, boxes = model(x, train=False)
         for var in model.variables:
             print(var.name)
+        tf.one_hot()
+
+        images, loc, cls = load_data(config.path, [name[0:6]])
+        train(model, images, cls, loc, optimizer)
