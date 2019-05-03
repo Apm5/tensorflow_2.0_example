@@ -1,0 +1,1 @@
+config.py and load_data.py is designed for VOC dataset.

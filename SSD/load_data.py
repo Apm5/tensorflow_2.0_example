@@ -1,8 +1,8 @@
 import cv2
 import os
-import config
 import xml.etree.ElementTree as ET
 import numpy as np
+import config
 
 def cal_iou(a, b):
     """
@@ -31,7 +31,56 @@ def cal_iou(a, b):
     overlaps = inters / uni
     return overlaps
 
-def load_data(path, name_list):
+def generate_default_boxes(form):
+    """
+
+    Args:
+        form: 'xywh' is for center x, y and size width and height
+              'ltrb' is for left, top, right and bottom
+
+    Returns:
+
+    """
+    boxes = np.zeros([8732, 4])
+    default_box = np.zeros([4])
+    start_index = 0
+    for k, (num, size) in enumerate(zip(config.box_num, config.feature_map_size)):
+        # kth feature map, number of boxes in one pixel and feature map size
+        for i in range(size):
+            for j in range(size):
+                # position (i, j) in feature map
+                center_x = (i + 0.5) / size
+                center_y = (j + 0.5) / size
+                if num == 4:
+                    aspect_ratio = [1, 1, 2, 0.5]
+                    scale = np.full([4], config.scale[k])
+                    scale[1] = np.sqrt(config.scale[k] * config.scale[k + 1])
+                if num == 6:
+                    aspect_ratio = [1, 1, 2, 0.5, 3, 1 / 3.0]
+                    scale = np.full([6], config.scale[k])
+                    scale[1] = np.sqrt(config.scale[k] * config.scale[k + 1])
+
+                for box_index, (ar, s) in enumerate(zip(aspect_ratio, scale)):
+                    w = s * np.sqrt(ar)
+                    h = s / np.sqrt(ar)
+
+                    if form == 'xywh':
+                        default_box[0] = center_x * 300
+                        default_box[1] = center_y * 300
+                        default_box[2] = w * 300
+                        default_box[3] = h * 300
+                    if form == 'ltrb':
+                        default_box[0] = (center_x - w / 2) * 300
+                        default_box[1] = (center_y - h / 2) * 300
+                        default_box[2] = (center_x + w / 2) * 300
+                        default_box[3] = (center_y + h / 2) * 300
+
+                    boxes[start_index + (i * size + j) * num + box_index, :] = default_box[:]
+        start_index += size * size * num
+    return boxes
+
+
+def load_data(path, name_list, default_boxes):
 
     obj_cnt = 0
     bg_cnt = 0
@@ -62,43 +111,35 @@ def load_data(path, name_list):
             ymax = int(bbox.find('ymax').text) * 300 / height  # bottom
             box_truth = [xmin, ymin, xmax, ymax]
 
-            start_index = 0
-            for k, (num, size) in enumerate(zip(config.box_num, config.feature_map_size)):
-                # kth feature map, number of boxes in one pixel and feature map size
-                for i in range(size):
-                    for j in range(size):
-                        # position (i, j) in feature map
-                        center_x = (i + 0.5) / size
-                        center_y = (j + 0.5) / size
-                        if num == 4:
-                            aspect_ratio = [1, 1, 2, 0.5]
-                            scale = [1, np.sqrt(config.scale[k] * config.scale[k+1]), 1, 1]
-                        if num == 6:
-                            aspect_ratio = [1, 1, 2, 0.5, 3, 1/3.0]
-                            scale = [1, np.sqrt(config.scale[k] * config.scale[k+1]), 1, 1, 1, 1]
-                        for box_index, (ar, s) in enumerate(zip(aspect_ratio, scale)):
-                            s = config.scale[k]
-                            w = s * np.sqrt(ar)
-                            h = s / np.sqrt(ar)
-                            default_xmin = (center_x - w / 2) * 300
-                            default_ymin = (center_y - h / 2) * 300
-                            default_xmax = (center_x + w / 2) * 300
-                            default_ymax = (center_y + h / 2) * 300
-                            box_default = [default_xmin, default_ymin, default_xmax, default_ymax]
-                            loc[batch_index, start_index + (i * size + j) * num + box_index, :] = box_default[:]
-                            IoU = cal_iou(box_truth, box_default)
-                            if IoU > 0.5:
-                                label = object.find('name').text
-                                # obj_cnt += 1
-                            else:
-                                label = 'back_ground'
-                                # bg_cnt += 1
-                            if cls[batch_index, start_index + (i * size + j) * num + box_index] == config.class_num - 1:
-                                # TODO IoU mark
-                                cls[batch_index, start_index + (i * size + j) * num + box_index] = config.class_dict[label]
-                start_index += size * size * num
+            for i, default_box in enumerate(default_boxes):
+                IoU = cal_iou(box_truth, default_box)
+                if IoU > 0.5:
+                    label = object.find('name').text
+                else:
+                    label = 'back_ground'
+                if cls[batch_index, i] == config.class_num - 1:
+                    # if is default to back ground
+                    # TODO IoU mark
+                    cls[batch_index, i] = config.class_dict[label]
+                    if label != 'back_ground':
+                        # save offsets, center x, y and width, height
 
+                        # g for ground truth box
+                        gx = (box_truth[0] + box_truth[2]) / 2
+                        gy = (box_truth[1] + box_truth[3]) / 2
+                        gw = box_truth[2] - box_truth[0]
+                        gh = box_truth[3] - box_truth[1]
 
+                        # d for default box
+                        dx = (box_truth[0] + box_truth[2]) / 2
+                        dy = (box_truth[1] + box_truth[3]) / 2
+                        dw = box_truth[2] - box_truth[0]
+                        dh = box_truth[3] - box_truth[1]
+
+                        loc[batch_index, i, 0] = (gx - dx) / dw
+                        loc[batch_index, i, 1] = (gy - dy) / dh
+                        loc[batch_index, i, 2] = np.log(gw / dw)
+                        loc[batch_index, i, 3] = np.log(gh / dh)
             # print(bg_cnt, obj_cnt)
             # if obj_cnt == 0:
             #     img = cv2.rectangle(img, (int(xmin), int(ymin)), (int(xmax), int(ymax)), (0, 255, 0), 2)
@@ -115,9 +156,10 @@ def load_data(path, name_list):
 
 
 if __name__ == '__main__':
+    default_boxes = generate_default_boxes('ltrb')
     with open(config.trainval, 'r') as f:
         for name in f:
-            images, loc, cls = load_data(config.path, [name[0:6]])
+            images, loc, cls = load_data(config.path, [name[0:6]], default_boxes)
             # print(np.shape(images), np.shape(labels))
             # cls = labels[:, :, 4]
             # loc = labels[:, :, 0:4]
