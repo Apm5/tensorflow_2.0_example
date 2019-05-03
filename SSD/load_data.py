@@ -86,9 +86,9 @@ def load_data(path, name_list, default_boxes):
     bg_cnt = 0
 
     batch_size = len(name_list)
-    images = np.zeros([batch_size, 300, 300, 3])
-    loc = np.zeros([batch_size, 8732, 4])
-    cls = np.full([batch_size, 8732], config.class_num-1)  # default to back ground
+    images = np.zeros([batch_size, 300, 300, 3], dtype=np.float32)
+    loc = np.zeros([batch_size, 8732, 4], dtype=np.float32)
+    cls = np.full([batch_size, 8732], config.class_num-1, dtype=np.int32)  # default to back ground
     for batch_index, name in enumerate(name_list):
         img = cv2.imread(os.path.join(path, 'JPEGImages', name+'.jpg'))
         img = cv2.resize(img, (300, 300))
@@ -160,10 +160,12 @@ if __name__ == '__main__':
     with open(config.trainval, 'r') as f:
         for name in f:
             images, loc, cls = load_data(config.path, [name[0:6]], default_boxes)
+            print(images.dtype, loc.dtype, cls.dtype)
             # print(np.shape(images), np.shape(labels))
             # cls = labels[:, :, 4]
             # loc = labels[:, :, 0:4]
-            print(np.shape(cls), np.shape(loc))
-            # print(cls)
-            ind = np.where(cls < 20)
-            print(np.shape(ind), ind)
+            # print(np.shape(cls), np.shape(loc))
+            # # print(cls)
+            # ind = np.where(cls < 20)
+            # print(np.shape(ind), ind)
+

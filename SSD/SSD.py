@@ -1,8 +1,9 @@
 import tensorflow as tf
 import numpy as np
 import config
+import time
 from Layers import ConvBlock2D, Conv2D
-from load_data import load_data
+from load_data import load_data, generate_default_boxes
 
 class Model(tf.keras.models.Model):
     """
@@ -10,7 +11,7 @@ class Model(tf.keras.models.Model):
     normalization. However, model.summary() doesn't work. Just don't know why. You can add `print(net.shape)` in
     call() to show the output size of layers.
     """
-    def __init__(self, class_num, **kwargs):
+    def __init__(self, class_num=config.class_num, **kwargs):
         super(Model, self).__init__(**kwargs)
         self.class_num = class_num
         self.conv1_1 = ConvBlock2D(64)
@@ -96,6 +97,7 @@ class Model(tf.keras.models.Model):
             cls_list.append(tf.reshape(self.conv_cls[i](feature_map), [batch_size, -1, self.class_num]))
             loc_list.append(tf.reshape(self.conv_loc[i](feature_map), [batch_size, -1, 4]))
         cls = tf.concat(cls_list, axis=1)
+        cls = tf.nn.softmax(cls)
         loc = tf.concat(loc_list, axis=1)
         print(cls.shape, loc.shape)
 
@@ -103,32 +105,86 @@ class Model(tf.keras.models.Model):
         #         tf.logical_and
         return cls, loc
 
-def cls_loss(cls_true, loc_pred):
-    return True
+def cls_loss(cls_true, cls_pred):
+    def cross_entropy(y_true, y_pred):
+        loss = -tf.reduce_sum(y_true * tf.math.log(tf.clip_by_value(y_pred, 1e-10, 1.0)))
+        return loss
 
-def loc_loss(loc_true, loc_pred):
-    return True
+    loss = tf.cast(0.0, dtype=tf.float32)
 
+    # positive
+    ind_pos = tf.where(tf.less(cls_true, 20))
+    cls_true_pos = tf.gather_nd(cls_true, ind_pos)
+    cls_true_pos = tf.one_hot(cls_true_pos, 21)
+    num_pos = tf.shape(cls_true_pos)[0]
+    cls_pred_pos = tf.gather_nd(cls_pred, ind_pos)
+    loss = loss + cross_entropy(cls_true_pos, cls_pred_pos)
+
+    # negative
+    ind_neg = tf.where(tf.equal(cls_true, 20))
+    cls_pred_neg = tf.gather_nd(cls_pred, ind_neg)
+    neg = tf.nn.top_k(-cls_pred_neg[:, 20], num_pos * 3)  # '-' for top-k minimum
+    loss = loss - tf.reduce_sum(tf.math.log(tf.clip_by_value(-neg[0], 1e-10, 1.0)))  # '-' is necessary
+    return loss
+
+def loc_loss(cls_true, loc_true, loc_pred):
+    # In fact, loc is the offset.
+
+    def smooth_l1(x):
+        if x < 1:
+            output = 0.5 * x * x
+        else:
+            output = x - 0.5
+        return output
+
+    ind = tf.where(tf.less(cls_true, 20))
+    loc_true_ = tf.gather_nd(loc_true, ind)
+    loc_pred_ = tf.gather_nd(loc_pred, ind)
+    diff = tf.reshape(tf.math.abs(loc_true_ - loc_pred_), [-1])
+    loss = tf.reduce_sum(tf.map_fn(fn= lambda x: smooth_l1(x), elems=diff))
+
+    return loss
 
 @tf.function
 def train(model, images, cls_true, loc_true, optimizer):
     with tf.GradientTape() as tape:
         cls_pred, loc_pred = model(images, train=True)
-        loss = cls_loss(cls_true, cls_pred) + loc_loss(loc_true, loc_pred)
+        c_loss = cls_loss(cls_true, cls_pred)
+        l_loss = loc_loss(cls_true, loc_true, loc_pred)
+        loss = c_loss + l_loss
         gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
-    return loss
+    return c_loss, l_loss, loss
 
 if __name__ == '__main__':
     tf.config.gpu.set_per_process_memory_growth(enabled=True)  # gpu memory set
-    model = Model(10)
-    x = np.random.rand(4, 300, 300, 3)
+    with open(config.train, 'r') as f:
+        name_list = []
+        for name in f:
+            name_list.append(name[0:6])
+    print('train num:', len(name_list))
     with tf.device('/gpu:2'):
-        print(config.scale)
-        scores, boxes = model(x, train=False)
+        model = Model()
+        default_boxes = generate_default_boxes('ltrb')
+        # x = np.random.rand(8, 300, 300, 3)
+        # scores, boxes = model(x, train=False)
+        # print(np.shape(scores), np.shape(boxes))
         for var in model.variables:
             print(var.name)
-        tf.one_hot()
 
-        images, loc, cls = load_data(config.path, [name[0:6]])
-        train(model, images, cls, loc, optimizer)
+        epoch = 30
+        batch_num = 300
+        batch_size = 8
+        optimizer = tf.keras.optimizers.Adam()
+        for epoch_num in range(epoch):
+            # train
+            for i in range(batch_num):
+                images, loc_true, cls_true = load_data(config.path, name_list[i:i+batch_size], default_boxes)
+                # print(cls_true)
+
+                # ind = np.where(cls_true < 20)
+                # print(ind, np.shape(ind))
+
+                c, l, loss = train(model, images, cls_true, loc_true, optimizer)
+                print(i, 'loss:', loss.numpy(), 'cls:', c.numpy(), 'loc:', l.numpy())
+            model.save_weights('weights_'+str(epoch_num))
