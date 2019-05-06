@@ -1,5 +1,9 @@
 import tensorflow as tf
 import numpy as np
+import cv2
+from load_data import load_data, generate_default_boxes
+from SSD import Model
+import config
 
 def cal_iou(a, b):
     """
@@ -28,7 +32,7 @@ def cal_iou(a, b):
     overlaps = inters / uni
     return overlaps
 
-def nms(boxes, scores, class_num, max_boxes=50, score_threshold=0.5, iou_threshold=0.5):
+def nms(boxes, scores, class_num, max_boxes=50, score_threshold=0.50, iou_threshold=0.50):
     """
 
     Args:
@@ -50,27 +54,28 @@ def nms(boxes, scores, class_num, max_boxes=50, score_threshold=0.5, iou_thresho
 
     for i in range(class_num):
         # select
-        idx = np.where(labels == i)[0]
-        boxes_ = boxes[idx]
-        scores_ = scores[idx]
+        ind = np.where(labels == i)[0]
+        boxes_ = boxes[ind]
+        scores_ = scores[ind]
         # labels_ = labels[idx]
 
         # sort by score
-        idx = np.argsort(scores_)   # up
-        idx = idx[::-1]  # down
-        boxes_ = boxes_[idx]
-        scores_ = scores_[idx]
+        ind = np.argsort(scores_[:, i])   # up
+        ind = ind[::-1]  # down
+        boxes_ = boxes_[ind]
+        scores_ = scores_[ind]
         # labels_ = labels_[idx]
+        print(scores_, i)
 
         cnt = 0
         for j, box in enumerate(boxes_):
-            if j == 0:
-                boxes_output.append(boxes_[j])
-                scores_output.append(scores_[j])
-                labels_output.append(i)
-                cnt += 1
-            else:
-                if scores_[j] > score_threshold:
+            if scores_[j, i] > score_threshold:
+                if j == 0:
+                    boxes_output.append(boxes_[j])
+                    scores_output.append(scores_[j])
+                    labels_output.append(i)
+                    cnt += 1
+                else:
                     flag = True  # check iou
                     for k in range(j):  # with before
                         if cal_iou(boxes_[j], boxes_[k]) > iou_threshold:
@@ -154,3 +159,116 @@ def test(model, data, label, class_num, iou_threshold=0.5):
         mAP += AP
     mAP /= class_num
     return mAP
+
+def test_image(model, images, loc_true, cls_true ):
+    default_boxes = generate_default_boxes('xywh')
+    model.load_weights('weights/weights_99')
+    cls, loc = model(images, train=False)
+    cls, loc = cls.numpy(), loc.numpy()
+    # print(loc)
+    # print(np.shape(loc), np.shape(cls))
+    ind = np.where(cls_true < 20)
+    print(ind)
+    print(cls_true[ind])
+    print(loc_true[ind])
+
+    tmp = np.zeros([4])
+    for box, score in zip(loc, cls):
+        print(np.shape(score))
+        # print(score[ind[1]])
+        # print(box[ind[1]])
+        # print(score[:, 6])
+        for i in range(len(box)):
+            # print(box)
+            # offset to xywh
+            tmp[0] = box[i, 0] * default_boxes[i, 2] + default_boxes[i, 0]
+            tmp[1] = box[i, 1] * default_boxes[i, 3] + default_boxes[i, 1]
+            tmp[2] = np.exp(box[i, 2]) * default_boxes[i, 2]
+            tmp[3] = np.exp(box[i, 3]) * default_boxes[i, 3]
+
+            # xywh to ltrb
+            box[i, 0] = tmp[0] - tmp[2] / 2
+            box[i, 1] = tmp[1] - tmp[3] / 2
+            box[i, 2] = tmp[0] + tmp[2] / 2
+            box[i, 3] = tmp[1] + tmp[3] / 2
+
+        boxes_output, scores_output, labels_output = nms(box, score, 20)
+        print(np.shape(boxes_output))
+        print(np.shape(scores_output))
+        print(np.shape(labels_output))
+
+        print(boxes_output)
+        print(labels_output)
+        # xmin > 90 < / xmin > < ymin > 125 < / ymin > < xmax > 337 < / xmax > < ymax > 212 < / ymax >
+        img = np.array(images[0], dtype=np.uint8)
+        # img = cv2.rectangle(img, (54, 113), (202, 191), (0, 255, 0), 2)
+        # print(np.shape(img))
+        # print(img.dtype)
+        cv2.imshow('show', img)
+        cv2.waitKey(500)
+        for pos in boxes_output:
+            img = cv2.rectangle(img, (pos[0], pos[1]), (pos[2], pos[3]), (0, 255, 0), 2)
+            cv2.imshow('show', img)
+            cv2.waitKey(500)
+
+def fuck(model, images, loc_true, cls_true ):
+    default_boxes = generate_default_boxes('ltrb')
+    model.load_weights('weights/weights_99')
+    cls, loc = model(images, train=False)
+    cls, loc = cls.numpy(), loc.numpy()
+    # print(loc)
+    # print(np.shape(loc), np.shape(cls))
+    ind = np.where(cls_true < 20)
+    print(ind)
+    print(cls_true[ind])
+    print(loc_true[ind])
+    for i in ind[1]:
+        print('true:', cls_true[0][i])
+        print('pred:', cls[0][i])
+        img = np.array(images[0], dtype=np.uint8)
+        cv2.imshow('show', img)
+        cv2.waitKey(500)
+        img = cv2.rectangle(img, (int(default_boxes[i][0]), int(default_boxes[i][1])), (int(default_boxes[i][2]), int(default_boxes[i][3])), (0, 255, 0), 2)
+        cv2.imshow('show', img)
+        cv2.waitKey(500)
+
+if __name__ == '__main__':
+    model = Model()
+    default_boxes = generate_default_boxes('ltrb')
+    with open(config.train, 'r') as f:
+        name_list = []
+        for name in f:
+            name_list.append(name[0:6])
+    for name in name_list[500:]:
+        images, loc_true, cls_true = load_data(config.path, [name], default_boxes)
+        # print(loc_true)
+        fuck(model, images, loc_true, cls_true)
+    # f = open('SSD_result.txt', 'a')
+    # f.write('test')
+
+
+
+    # images_list = np.load('preload/images.npy')
+    # cls_list = np.load('preload/cls.npy')
+    # loc_list = np.load('preload/loc.npy')
+    #
+    # # tf.Tensor([0.76544    0.4478188  0.02661571 ... 0.13020377 0.99397826 0.31444868], shape=(2612,), dtype=float32)
+    # # tf.Tensor([1. 1. 1. ... 1. 1. 1.], shape=(2612,), dtype=float32)
+    # cnt = 0
+    # default_boxes = generate_default_boxes('ltrb')
+    # for i in range(10):
+    #     images, loc_true, cls_true = images_list[i], loc_list[i], cls_list[i]
+    #     print(np.shape(loc_true), np.shape(cls_true))
+    #     ind = np.where(cls_true < 20)
+    #     print(np.shape(ind))
+    #     cnt += np.shape(ind)[1]
+    #
+    #     boxes = default_boxes[ind[0]]
+    #     images = np.array(images, dtype=np.uint8)
+    #     for box in boxes:
+    #         print(box)
+    #         box = np.array(box, dtype=np.int32)
+    #         img = cv2.rectangle(images, (box[0], box[1]), (box[2], box[3]), (0, 255, 0), 2)
+    #         cv2.imshow('show', img)
+    #         cv2.waitKey(500)
+    # print(cnt)

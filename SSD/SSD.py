@@ -2,6 +2,7 @@ import tensorflow as tf
 import numpy as np
 import config
 import time
+import cv2
 from Layers import ConvBlock2D, Conv2D
 from load_data import load_data, generate_default_boxes
 
@@ -60,36 +61,36 @@ class Model(tf.keras.models.Model):
         net = self.conv4_2(net, train)
         net = self.conv4_3(net, train) # output
         feature_map_list.append(net)
-        print(net.shape)
+        # print(net.shape)
         net = tf.nn.max_pool2d(net, (2, 2), (2, 2), 'SAME')
         net = self.conv5_1(net, train)
         net = self.conv5_2(net, train)
         net = self.conv5_3(net, train)
-        print(net.shape)
+        # print(net.shape)
         net = self.conv6(net, train)
         net = self.conv7(net, train)
         feature_map_list.append(net)
-        print(net.shape)
+        # print(net.shape)
         net = tf.nn.max_pool2d(net, (2, 2), (2, 2), 'SAME')
         net = self.conv8_1(net, train)
         net = self.conv8_2(net, train)
         feature_map_list.append(net)
-        print(net.shape)
+        # print(net.shape)
         net = tf.nn.max_pool2d(net, (2, 2), (2, 2), 'SAME')
         net = self.conv9_1(net, train)
         net = self.conv9_2(net, train)
         feature_map_list.append(net)
-        print(net.shape)
+        # print(net.shape)
         net = tf.nn.max_pool2d(net, (2, 2), (2, 2), 'SAME')
         net = self.conv10_1(net, train)
         net = self.conv10_2(net, train)
         feature_map_list.append(net)
-        print(net.shape)
+        # print(net.shape)
         net = tf.nn.max_pool2d(net, (3, 3), (3, 3), 'SAME')
         net = self.conv11_1(net, train)
         net = self.conv11_2(net, train)
         feature_map_list.append(net)
-        print(net.shape)
+        # print(net.shape)
 
         cls_list = []
         loc_list = []
@@ -99,7 +100,7 @@ class Model(tf.keras.models.Model):
         cls = tf.concat(cls_list, axis=1)
         cls = tf.nn.softmax(cls)
         loc = tf.concat(loc_list, axis=1)
-        print(cls.shape, loc.shape)
+        # print(cls.shape, loc.shape)
 
         # tf.nn.top_k
         #         tf.logical_and
@@ -111,20 +112,28 @@ def cls_loss(cls_true, cls_pred):
         return loss
 
     loss = tf.cast(0.0, dtype=tf.float32)
+    # print(loss)
 
     # positive
     ind_pos = tf.where(tf.less(cls_true, 20))
+    print(ind_pos)
     cls_true_pos = tf.gather_nd(cls_true, ind_pos)
     cls_true_pos = tf.one_hot(cls_true_pos, 21)
+    # print(cls_true_pos)
     num_pos = tf.shape(cls_true_pos)[0]
     cls_pred_pos = tf.gather_nd(cls_pred, ind_pos)
+    # print(cls_pred_pos)
     loss = loss + cross_entropy(cls_true_pos, cls_pred_pos)
+    # print(loss)
 
     # negative
     ind_neg = tf.where(tf.equal(cls_true, 20))
     cls_pred_neg = tf.gather_nd(cls_pred, ind_neg)
     neg = tf.nn.top_k(-cls_pred_neg[:, 20], num_pos * 3)  # '-' for top-k minimum
     loss = loss - tf.reduce_sum(tf.math.log(tf.clip_by_value(-neg[0], 1e-10, 1.0)))  # '-' is necessary
+    # print(loss)
+
+    # conf_pos_mask * tf.nn.softmax_cross_entropy_with_logits(labels=object_mask, logits=pred_conf_logits)
     return loss
 
 def loc_loss(cls_true, loc_true, loc_pred):
@@ -137,54 +146,118 @@ def loc_loss(cls_true, loc_true, loc_pred):
             output = x - 0.5
         return output
 
+    loss = tf.cast(0.0, dtype=tf.float32)
+
     ind = tf.where(tf.less(cls_true, 20))
     loc_true_ = tf.gather_nd(loc_true, ind)
     loc_pred_ = tf.gather_nd(loc_pred, ind)
     diff = tf.reshape(tf.math.abs(loc_true_ - loc_pred_), [-1])
-    loss = tf.reduce_sum(tf.map_fn(fn= lambda x: smooth_l1(x), elems=diff))
+    # loss = tf.reduce_sum(tf.map_fn(fn= lambda x: smooth_l1(x), elems=diff))  # fucking idiot function
+    ind = tf.where(tf.less(diff, 1.0))
+    loss += tf.reduce_sum(0.5 * tf.math.pow(tf.gather_nd(diff, ind), 2))
+    ind = tf.where(tf.less(1.0, diff))
+    loss += tf.reduce_sum(tf.gather_nd(diff, ind) - 0.5)
 
     return loss
+
+def Loss(cls_true, cls_pred, loc_true, loc_pred):
+    ind_pos = tf.where(tf.less(cls_true, 20))  # matched default boxes
+    ind_neg = tf.where(tf.equal(cls_true, 20))  # back ground default boxes
+    N = tf.shape(ind_pos)[0]
+
+    # classification loss
+    cls_true_pos = tf.gather_nd(cls_true, ind_pos)
+    cls_true_pos = tf.one_hot(cls_true_pos, 21)
+    cls_pred_pos = tf.gather_nd(cls_pred, ind_pos)
+
+    cls_pred_neg = tf.gather_nd(cls_pred, ind_neg)
+    neg_top_k = tf.nn.top_k(-cls_pred_neg[:, 20], N * 3)  # '-' for top-k minimum
+    L_cls = - tf.reduce_sum(cls_true_pos * tf.math.log(tf.clip_by_value(cls_pred_pos, 1e-10, 1.0))) \
+            - tf.reduce_sum(tf.math.log(tf.clip_by_value(-neg_top_k[0], 1e-10, 1.0)))  # '-' is necessary
+
+    # location loss
+    loc_true_ = tf.gather_nd(loc_true, ind_pos)
+    loc_pred_ = tf.gather_nd(loc_pred, ind_pos)
+    # smooth l1
+    diff = tf.reshape(tf.math.abs(loc_true_ - loc_pred_), [-1])
+    mask = tf.cast(tf.less(diff, 1.0), dtype=tf.float32)
+    # print(diff, mask)
+    L_loc = tf.reduce_sum(0.5 * tf.math.pow(diff, 2) * mask) + \
+            tf.reduce_sum((diff - 0.5) * (1 - mask))
+
+    N = tf.cast(N, dtype=tf.float32)
+    L = (L_cls + L_loc) / N
+    return L_cls / N, L_loc / N, L
 
 @tf.function
 def train(model, images, cls_true, loc_true, optimizer):
     with tf.GradientTape() as tape:
-        cls_pred, loc_pred = model(images, train=True)
-        c_loss = cls_loss(cls_true, cls_pred)
-        l_loss = loc_loss(cls_true, loc_true, loc_pred)
-        loss = c_loss + l_loss
+        cls_pred, loc_pred = model(images, train=True)  # 0.015s
+        # c_loss = cls_loss(cls_true, cls_pred)  # 0.002s
+        # l_loss = loc_loss(cls_true, loc_true, loc_pred)  # 0.25s
+        # loss = c_loss + l_loss
+        c_loss, l_loss, loss = Loss(cls_true, cls_pred, loc_true, loc_pred)
+        # TODO optimize the loss function
         gradients = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
     return c_loss, l_loss, loss
 
 if __name__ == '__main__':
     tf.config.gpu.set_per_process_memory_growth(enabled=True)  # gpu memory set
-    with open(config.train, 'r') as f:
-        name_list = []
-        for name in f:
-            name_list.append(name[0:6])
-    print('train num:', len(name_list))
+    # with open(config.train, 'r') as f:
+    #     name_list = []
+    #     for name in f:
+    #         name_list.append(name[0:6])
+    # print('train num:', len(name_list))
+    # print(name_list[3:4])
+    #
+    # default_boxes = generate_default_boxes('ltrb')
+    # images, loc_true, cls_true = load_data(config.path, name_list[3:4], default_boxes)
+    # print(loc_true, cls_true)
+    # model = Model()
+    # test(model, images, cls_true, loc_true)
     with tf.device('/gpu:2'):
         model = Model()
-        default_boxes = generate_default_boxes('ltrb')
+        model.load_weights('weights/weights_99')
+        # default_boxes = generate_default_boxes('ltrb')
         # x = np.random.rand(8, 300, 300, 3)
         # scores, boxes = model(x, train=False)
         # print(np.shape(scores), np.shape(boxes))
         for var in model.variables:
             print(var.name)
 
-        epoch = 30
-        batch_num = 300
-        batch_size = 8
-        optimizer = tf.keras.optimizers.Adam()
-        for epoch_num in range(epoch):
+        epoch = 100
+        batch_num = 250
+        batch_size = 10
+        f = open('SSD_result.txt', 'a')
+        # optimizer = tf.keras.optimizers.Adam(0.001)
+
+
+        images_list = np.load('preload/images.npy')
+        cls_list = np.load('preload/cls.npy')
+        loc_list = np.load('preload/loc.npy')
+        optimizer = tf.keras.optimizers.SGD(learning_rate=0.001, momentum=0.9)
+
+        for epoch_ind in range(epoch):
             # train
+            total_loss = 0
+            total_c_loss = 0
+            total_l_loss = 0
             for i in range(batch_num):
-                images, loc_true, cls_true = load_data(config.path, name_list[i:i+batch_size], default_boxes)
+                # images, loc_true, cls_true = load_data(config.path, name_list[i:i+batch_size], default_boxes)
+                images, loc_true, cls_true = images_list[i:i+batch_size], loc_list[i:i+batch_size], cls_list[i:i+batch_size]
                 # print(cls_true)
 
                 # ind = np.where(cls_true < 20)
                 # print(ind, np.shape(ind))
-
                 c, l, loss = train(model, images, cls_true, loc_true, optimizer)
-                print(i, 'loss:', loss.numpy(), 'cls:', c.numpy(), 'loc:', l.numpy())
-            model.save_weights('weights_'+str(epoch_num))
+                total_loss += loss.numpy()
+                total_c_loss += c.numpy()
+                total_l_loss += l.numpy()
+                print('epoch:', epoch_ind,
+                      i, '/250',
+                      'loss:', loss.numpy(),
+                      'cls:', c.numpy(),
+                      'loc:', l.numpy())
+            model.save_weights('weights/weights_'+str(epoch_ind))
+            f.write('epoch: %d, loss: %f, cls: %f, loc: %f' % (epoch_ind, total_loss, total_c_loss, total_l_loss) + '\n')
