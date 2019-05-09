@@ -72,6 +72,63 @@ class Conv2D(tf.keras.layers.Layer):
         shape[-1] = self.output_dim
         return tf.TensorShape(shape)
 
+class DilatedConv2D(tf.keras.layers.Layer):
+    def __init__(self, output_dim, rate, kernel=(3, 3), use_bias=True, padding='SAME', **kwargs):
+        self.output_dim = output_dim
+        self.rate = rate
+        self.kernel = kernel
+        self.use_bias = use_bias
+        self.padding = padding
+        super(DilatedConv2D, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        shape = tf.TensorShape((self.kernel[0], self.kernel[1], input_shape[-1], self.output_dim))
+        # Create a trainable weight variable for this layer.
+        self.kernel = self.add_weight(name='kernel',
+                                      shape=shape,
+                                      initializer=tf.initializers.RandomUniform,
+                                      trainable=True)
+        if self.use_bias:
+            self.bias = self.add_weight(name='bias',
+                                        shape=[self.output_dim, ],
+                                        initializer=tf.initializers.zeros,
+                                        trainable=True)
+        super(DilatedConv2D, self).build(input_shape)
+
+    def call(self, inputs):
+        if self.use_bias:
+            output = tf.add(tf.nn.atrous_conv2d(inputs, self.kernel, rate=self.rate, padding=self.padding), self.bias)
+        else:
+            output = tf.nn.conv2d(inputs, self.kernel, rate=self.rate, padding=self.padding)
+        return output
+
+    def compute_output_shape(self, input_shape):
+        shape = tf.TensorShape(input_shape).as_list()
+        shape[-1] = self.output_dim
+        return tf.TensorShape(shape)
+
+class L2Normalization(tf.keras.layers.Layer):
+    def __init__(self, scaling, **kwargs):
+        self.scaling = scaling
+        super(L2Normalization, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        # Create a trainable weight variable for this layer.
+        if self.scaling:
+            self.scale = self.add_weight(name='scale',
+                                         shape=[input_shape[-1], ],
+                                         initializer=tf.initializers.zeros,
+                                         trainable=True)
+        super(L2Normalization, self).build(input_shape)
+
+    def call(self, inputs):
+        output = tf.nn.l2_normalize(inputs, axis=-1)
+        if self.scaling:
+            output = tf.multiply(output, self.scale)
+        return output
+
+    def compute_output_shape(self, input_shape):
+        return input_shape
 
 class BatchNormalization(tf.keras.layers.Layer):
     def __init__(self, decay=0.9, **kwargs):

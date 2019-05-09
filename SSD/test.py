@@ -160,17 +160,14 @@ def test(model, data, label, class_num, iou_threshold=0.5):
     mAP /= class_num
     return mAP
 
-def test_image(model, images, loc_true, cls_true ):
+def test_image(model, images):
     default_boxes = generate_default_boxes('xywh')
-    model.load_weights('weights/weights_99')
+    model.load_weights('weights/weights_499')
     cls, loc = model(images, train=False)
     cls, loc = cls.numpy(), loc.numpy()
     # print(loc)
     # print(np.shape(loc), np.shape(cls))
     ind = np.where(cls_true < 20)
-    print(ind)
-    print(cls_true[ind])
-    print(loc_true[ind])
 
     tmp = np.zeros([4])
     for box, score in zip(loc, cls):
@@ -212,23 +209,44 @@ def test_image(model, images, loc_true, cls_true ):
             cv2.waitKey(500)
 
 def fuck(model, images, loc_true, cls_true ):
-    default_boxes = generate_default_boxes('ltrb')
-    model.load_weights('weights/weights_99')
-    cls, loc = model(images, train=False)
-    cls, loc = cls.numpy(), loc.numpy()
+
+    model.load_weights('weights/weights_37')
+    cls, loc = model(images, train=True)
+    # cls, loc = cls.numpy(), loc.numpy()
+    cls, loc = [cls.numpy()[0]], [loc.numpy()[0]]
     # print(loc)
-    # print(np.shape(loc), np.shape(cls))
+    print(np.shape(loc), np.shape(cls))
     ind = np.where(cls_true < 20)
-    print(ind)
-    print(cls_true[ind])
-    print(loc_true[ind])
+    # print(ind)
+    # print(cls_true[ind])
+    # print(loc_true[ind])
     for i in ind[1]:
         print('true:', cls_true[0][i])
         print('pred:', cls[0][i])
+        print('true:', loc_true[0][i])
+        print('pred:', loc[0][i])
         img = np.array(images[0], dtype=np.uint8)
         cv2.imshow('show', img)
         cv2.waitKey(500)
+
+        default_boxes = generate_default_boxes('ltrb')
         img = cv2.rectangle(img, (int(default_boxes[i][0]), int(default_boxes[i][1])), (int(default_boxes[i][2]), int(default_boxes[i][3])), (0, 255, 0), 2)
+
+        default_boxes = generate_default_boxes('xywh')
+        tmp = np.zeros([4])
+        box = loc[0][i]
+        tmp[0] = box[0] * default_boxes[i, 2] + default_boxes[i, 0]
+        tmp[1] = box[1] * default_boxes[i, 3] + default_boxes[i, 1]
+        tmp[2] = np.exp(box[2]) * default_boxes[i, 2]
+        tmp[3] = np.exp(box[3]) * default_boxes[i, 3]
+
+        # xywh to ltrb
+        box[0] = tmp[0] - tmp[2] / 2
+        box[1] = tmp[1] - tmp[3] / 2
+        box[2] = tmp[0] + tmp[2] / 2
+        box[3] = tmp[1] + tmp[3] / 2
+        img = cv2.rectangle(img, (box[0], box[1]), (box[2], box[3]), (255, 0, 0), 2)
+
         cv2.imshow('show', img)
         cv2.waitKey(500)
 
@@ -239,10 +257,14 @@ if __name__ == '__main__':
         name_list = []
         for name in f:
             name_list.append(name[0:6])
-    for name in name_list[500:]:
-        images, loc_true, cls_true = load_data(config.path, [name], default_boxes)
-        # print(loc_true)
+    for i in range(2, len(name_list)):
+        # images, loc_true, cls_true = load_data(config.path, name_list[i:i+5], default_boxes)
+        images, loc_true, cls_true = load_data(config.path, name_list[i:i + 1], default_boxes)
         fuck(model, images, loc_true, cls_true)
+        # test_image(model, images)
+
+    # print(loc_true)
+    # fuck(model, images, loc_true, cls_true)
     # f = open('SSD_result.txt', 'a')
     # f.write('test')
 
