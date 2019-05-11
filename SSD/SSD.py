@@ -43,9 +43,6 @@ class Model(tf.keras.models.Model):
         self.conv_cls = [Conv2D(box_num * self.class_num) for box_num in config.box_num]
         self.conv_loc = [Conv2D(box_num * 4) for box_num in config.box_num]
 
-        self.scale = [0.2, 0.34, 0.48, 0.62, 0.76, 0.9, 1.04] # maybe different from other implementation
-        self.default_box_num = [4, 6, 6, 6, 4, 4]
-        self.ratio = [[1, 2], [1, 2, 3], [1, 2, 3], [1, 2, 3], [1, 2], [1, 2]]
 
     def call(self, inputs, train):
         feature_map_list = []
@@ -277,7 +274,9 @@ def Loss_mask(cls_true, cls_pred, loc_true, loc_pred):
     # print(l_loc)
 
     p_num = tf.cast(p_num, dtype=tf.float32)
-    L = (L_cls + L_loc) / p_num
+    # L = (L_cls + L_loc) / p_num
+    L = L_cls / p_num
+    # L = L_loc / p_num
     return L_cls / p_num, L_loc / p_num, L
 
 @tf.function
@@ -309,7 +308,7 @@ if __name__ == '__main__':
     # test(model, images, cls_true, loc_true)
     with tf.device('/gpu:2'):
         model = Model()
-        model.load_weights('weights/weights_299')
+        # model.load_weights('weights/weights_299')
         # default_boxes = generate_default_boxes('ltrb')
         # x = np.random.rand(8, 300, 300, 3)
         # scores, boxes = model(x, train=False)
@@ -332,7 +331,7 @@ if __name__ == '__main__':
         batch_num = int(sample_num / batch_size)
         shuffle_seed = np.arange(sample_num)
 
-        optimizer = tf.keras.optimizers.SGD(learning_rate=0.0001, momentum=0.9)
+        optimizer = tf.keras.optimizers.SGD(learning_rate=0.001, momentum=0.9)
 
         for epoch_ind in range(0, epoch):
             # train

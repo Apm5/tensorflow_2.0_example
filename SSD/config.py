@@ -1,4 +1,5 @@
-scale = [0.2, 0.34, 0.48, 0.62, 0.76, 0.9, 1.04]
+# scale = [0.2, 0.34, 0.48, 0.62, 0.76, 0.9, 1.04]
+scale = [0.1, 0.2, 0.375, 0.55, 0.725, 0.9, 1.075]
 box_num = [4, 6, 6, 6, 4, 4]
 feature_map_size = [38, 19, 10, 5, 3, 1]
 path = '/home/user/Documents/dataset/VOC/VOC/VOCdevkit/VOC2007'

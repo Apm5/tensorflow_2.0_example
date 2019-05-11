@@ -85,16 +85,13 @@ def generate_default_boxes(form):
 
 
 def load_data(path, name_list, default_boxes):
-
-    obj_cnt = 0
-    bg_cnt = 0
-
     batch_size = len(name_list)
     images = np.zeros([batch_size, 300, 300, 3], dtype=np.float32)
     cls = np.full([batch_size, 8732], config.class_num-1, dtype=np.int32)  # default to back ground
     loc = np.zeros([batch_size, 8732, 4], dtype=np.float32)  # default to no offsets
     for batch_index, name in enumerate(name_list):
         print(batch_index)
+        obj_cnt = 0
         img = cv2.imread(os.path.join(path, 'JPEGImages', name+'.jpg'))
         img = cv2.resize(img, (300, 300))
         images[batch_index, :, :, :] = img[:, :, :]
@@ -127,6 +124,7 @@ def load_data(path, name_list, default_boxes):
                     # TODO IoU mark
                     cls[batch_index, i] = config.class_dict[label]
                     if label != 'back_ground':
+                        obj_cnt += 1
                         # save offsets, center x, y and width, height
 
                         # g for ground truth box
@@ -156,6 +154,7 @@ def load_data(path, name_list, default_boxes):
             # print(xmin, ymin, xmax, ymax)
             # img = cv2.rectangle(img, (int(xmin), int(ymin)), (int(xmax), int(ymax)), (0, 255, 0), 2)
             # cv2.rectangle(img, (left, top), (right, bottom), (r, g, b), thickness)
+        print(obj_cnt)
 
     return images, loc, cls
 
@@ -168,7 +167,7 @@ if __name__ == '__main__':
             name_list.append(name[0:6])
 
     print(len(name_list))
-    images, loc, cls = load_data(config.path, name_list[0: 2500], default_boxes)
+    images, loc, cls = load_data(config.path, name_list, default_boxes)
     np.save('preload/images.npy', images)
     np.save('preload/loc.npy', loc)
     np.save('preload/cls.npy', cls)
