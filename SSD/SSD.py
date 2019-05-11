@@ -309,7 +309,7 @@ if __name__ == '__main__':
     # test(model, images, cls_true, loc_true)
     with tf.device('/gpu:2'):
         model = Model()
-        # model.load_weights('weights/weights_299')
+        model.load_weights('weights/weights_299')
         # default_boxes = generate_default_boxes('ltrb')
         # x = np.random.rand(8, 300, 300, 3)
         # scores, boxes = model(x, train=False)
@@ -327,12 +327,12 @@ if __name__ == '__main__':
         sample_num = len(images_list)
         print(sample_num)
 
-        epoch = 100
+        epoch = 200
         batch_size = 32
         batch_num = int(sample_num / batch_size)
         shuffle_seed = np.arange(sample_num)
 
-        optimizer = tf.keras.optimizers.SGD(learning_rate=0.001, momentum=0.9)
+        optimizer = tf.keras.optimizers.SGD(learning_rate=0.0001, momentum=0.9)
 
         for epoch_ind in range(0, epoch):
             # train
@@ -359,6 +359,6 @@ if __name__ == '__main__':
                       'loss:', loss.numpy(),
                       'cls:', c.numpy(),
                       'loc:', l.numpy())
-            # if epoch_ind % 10 == 9:
-            model.save_weights('weights/weights_'+str(epoch_ind))
+            if epoch_ind % 10 == 9:
+                model.save_weights('weights/weights_'+str(epoch_ind))
             # f.write('epoch: %d, loss: %f, cls: %f, loc: %f' % (epoch_ind, total_loss, total_c_loss, total_l_loss) + '\n')
