@@ -20,13 +20,13 @@ Models and layers are as follows:
 
 [VGG-16](https://github.com/Apm5/tensorflow_2.0_example/blob/master/CNN/VGG.py)
 
+[LSTM](https://github.com/Apm5/tensorflow_2.0_example/blob/master/RNN/LSTM.py)
+
 #### TODO:
 
 tf.data
 
 Gabor convolution
-
-LSTM
 
 ResNet
 
