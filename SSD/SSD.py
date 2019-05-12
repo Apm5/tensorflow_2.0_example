@@ -140,6 +140,99 @@ class Model(tf.keras.models.Model):
         #         tf.logical_and
         return cls, loc
 
+class Model_batchnorm(tf.keras.models.Model):
+    """
+    By this subclass, you can use to specify a different behavior in training and test such as dropout and batch
+    normalization. However, model.summary() doesn't work. Just don't know why. You can add `print(net.shape)` in
+    call() to show the output size of layers.
+    """
+    def __init__(self, class_num=config.class_num, **kwargs):
+        super(Model_batchnorm, self).__init__(**kwargs)
+        self.class_num = class_num
+        self.conv1_1 = ConvBlock2D(64)
+        self.conv1_2 = ConvBlock2D(64, use_pooling=True)
+        self.conv2_1 = ConvBlock2D(128)
+        self.conv2_2 = ConvBlock2D(128, use_pooling=True)
+        self.conv3_1 = ConvBlock2D(256)
+        self.conv3_2 = ConvBlock2D(256)
+        self.conv3_3 = ConvBlock2D(256, use_pooling=True)
+        self.conv4_1 = ConvBlock2D(512)
+        self.conv4_2 = ConvBlock2D(512)
+        self.conv4_3 = ConvBlock2D(512) # output before pooling
+        self.conv5_1 = ConvBlock2D(512)
+        self.conv5_2 = ConvBlock2D(512)
+        self.conv5_3 = ConvBlock2D(512)
+        self.conv6 = ConvBlock2D(1024)
+        self.conv7 = ConvBlock2D(1024, kernel=(1, 1)) # output
+        self.conv8_1 = ConvBlock2D(256, kernel=(1, 1))
+        self.conv8_2 = ConvBlock2D(512, strides=(1, 2, 2, 1)) # output
+        self.conv9_1 = ConvBlock2D(128, kernel=(1, 1))
+        self.conv9_2 = ConvBlock2D(256, strides=(1, 2, 2, 1)) # output
+        self.conv10_1 = ConvBlock2D(128, kernel=(1, 1))
+        self.conv10_2 = ConvBlock2D(256, strides=(1, 2, 2, 1)) # output
+        self.conv11_1 = ConvBlock2D(128, kernel=(1, 1))
+        self.conv11_2 = ConvBlock2D(256, padding='VALID') # output
+
+        self.conv_cls = [Conv2D(box_num * self.class_num) for box_num in config.box_num]
+        self.conv_loc = [Conv2D(box_num * 4) for box_num in config.box_num]
+
+
+    def call(self, inputs, train):
+        feature_map_list = []
+        batch_size = inputs.shape[0]
+
+        net = self.conv1_1(inputs, train)
+        net = self.conv1_2(net, train)
+        net = self.conv2_1(net, train)
+        net = self.conv2_2(net, train)
+        net = self.conv3_1(net, train)
+        net = self.conv3_2(net, train)
+        net = self.conv3_3(net, train)
+        net = self.conv4_1(net, train)
+        net = self.conv4_2(net, train)
+        net = self.conv4_3(net, train) # output
+        feature_map_list.append(net)
+        print(net.shape)
+        net = tf.nn.max_pool2d(net, (2, 2), (2, 2), 'SAME')
+        net = self.conv5_1(net, train)
+        net = self.conv5_2(net, train)
+        net = self.conv5_3(net, train)
+        # print(net.shape)
+        net = self.conv6(net, train)
+        net = self.conv7(net, train)
+        feature_map_list.append(net)
+        print(net.shape)
+        net = self.conv8_1(net, train)
+        net = self.conv8_2(net, train)
+        feature_map_list.append(net)
+        print(net.shape)
+        net = self.conv9_1(net, train)
+        net = self.conv9_2(net, train)
+        feature_map_list.append(net)
+        print(net.shape)
+        net = self.conv10_1(net, train)
+        net = self.conv10_2(net, train)
+        feature_map_list.append(net)
+        print(net.shape)
+        net = self.conv11_1(net, train)
+        net = self.conv11_2(net, train)
+        feature_map_list.append(net)
+        print(net.shape)
+
+        cls_list = []
+        loc_list = []
+        for i, feature_map in enumerate(feature_map_list):
+            cls_list.append(tf.reshape(self.conv_cls[i](feature_map), [batch_size, -1, self.class_num]))
+            loc_list.append(tf.reshape(self.conv_loc[i](feature_map), [batch_size, -1, 4]))
+        cls = tf.concat(cls_list, axis=1)
+        cls = tf.nn.softmax(cls)
+        loc = tf.concat(loc_list, axis=1)
+        # print(cls.shape, loc.shape)
+
+        # tf.nn.top_k
+        #         tf.logical_and
+        return cls, loc
+
 def cls_loss(cls_true, cls_pred):
     def cross_entropy(y_true, y_pred):
         loss = -tf.reduce_sum(y_true * tf.math.log(tf.clip_by_value(y_pred, 1e-10, 1.0)))
@@ -274,8 +367,8 @@ def Loss_mask(cls_true, cls_pred, loc_true, loc_pred):
     # print(l_loc)
 
     p_num = tf.cast(p_num, dtype=tf.float32)
-    # L = (L_cls + L_loc) / p_num
-    L = L_cls / p_num
+    L = (L_cls + L_loc) / p_num
+    # L = L_cls / p_num
     # L = L_loc / p_num
     return L_cls / p_num, L_loc / p_num, L
 
@@ -307,14 +400,14 @@ if __name__ == '__main__':
     # model = Model()
     # test(model, images, cls_true, loc_true)
     with tf.device('/gpu:2'):
-        model = Model()
-        # model.load_weights('weights/weights_299')
+        model = Model_batchnorm()
+        model.load_weights('weights/weights_499')
         # default_boxes = generate_default_boxes('ltrb')
         # x = np.random.rand(8, 300, 300, 3)
         # scores, boxes = model(x, train=False)
         # print(np.shape(scores), np.shape(boxes))
-        for var in model.variables:
-            print(var.name)
+        # for var in model.variables:
+        #     print(var.name)
 
         # f = open('SSD_result.txt', 'a')
         # optimizer = tf.keras.optimizers.Adam(0.001)
@@ -331,7 +424,7 @@ if __name__ == '__main__':
         batch_num = int(sample_num / batch_size)
         shuffle_seed = np.arange(sample_num)
 
-        optimizer = tf.keras.optimizers.SGD(learning_rate=0.001, momentum=0.9)
+        optimizer = tf.keras.optimizers.SGD(learning_rate=0.0001, momentum=0.9)
 
         for epoch_ind in range(0, epoch):
             # train
@@ -358,6 +451,9 @@ if __name__ == '__main__':
                       'loss:', loss.numpy(),
                       'cls:', c.numpy(),
                       'loc:', l.numpy())
+            if epoch_ind == 0:
+                for var in model.variables:
+                    print(var.name)
             if epoch_ind % 10 == 9:
                 model.save_weights('weights/weights_'+str(epoch_ind))
             # f.write('epoch: %d, loss: %f, cls: %f, loc: %f' % (epoch_ind, total_loss, total_c_loss, total_l_loss) + '\n')

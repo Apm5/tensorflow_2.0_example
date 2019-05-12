@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 import cv2
 from load_data import load_data, generate_default_boxes
-from SSD import Model
+from SSD import Model, Model_batchnorm
 import config
 
 def cal_iou(a, b):
@@ -210,8 +210,8 @@ def test_image(model, images):
 
 def fuck(model, images, loc_true, cls_true ):
 
-    model.load_weights('weights/weights_37')
-    cls, loc = model(images, train=True)
+    model.load_weights('weights/weights_499')
+    cls, loc = model(images, train=False)
     # cls, loc = cls.numpy(), loc.numpy()
     cls, loc = [cls.numpy()[0]], [loc.numpy()[0]]
     # print(loc)
@@ -251,17 +251,17 @@ def fuck(model, images, loc_true, cls_true ):
         cv2.waitKey(500)
 
 if __name__ == '__main__':
-    model = Model()
+    model = Model_batchnorm()
     default_boxes = generate_default_boxes('ltrb')
     with open(config.train, 'r') as f:
         name_list = []
         for name in f:
             name_list.append(name[0:6])
-    for i in range(2, len(name_list)):
+    for i in range(20, len(name_list)):
         # images, loc_true, cls_true = load_data(config.path, name_list[i:i+5], default_boxes)
         images, loc_true, cls_true = load_data(config.path, name_list[i:i + 1], default_boxes)
-        fuck(model, images, loc_true, cls_true)
-        # test_image(model, images)
+        # fuck(model, images, loc_true, cls_true)
+        test_image(model, images)
 
     # print(loc_true)
     # fuck(model, images, loc_true, cls_true)

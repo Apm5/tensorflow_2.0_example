@@ -188,6 +188,8 @@ class ConvBlock2D(tf.keras.layers.Layer):
     def __init__(self,
                  output_dim,
                  kernel=(3, 3),
+                 strides=(1, 1, 1, 1),
+                 padding='SAME',
                  use_activation=True,
                  activation=tf.nn.relu,
                  use_batch_normalization=True,
@@ -197,6 +199,8 @@ class ConvBlock2D(tf.keras.layers.Layer):
                  dropout_rate=0.2,
                  **kwargs):
         super(ConvBlock2D, self).__init__(**kwargs)
+        self.strides = strides
+        self.padding = padding
         self.use_activation = use_activation
         self.activation = activation
         self.use_batch_normalization = use_batch_normalization
@@ -205,10 +209,10 @@ class ConvBlock2D(tf.keras.layers.Layer):
         self.use_dropout = use_dropout
         self.dropout_rate = dropout_rate
         if self.use_batch_normalization:
-            self.conv = Conv2D(output_dim=output_dim, kernel=kernel, use_bias=False)
+            self.conv = Conv2D(output_dim=output_dim, kernel=kernel, use_bias=False, strides=self.strides, padding=self.padding)
             self.bn = BatchNormalization()
         else:
-            self.conv = Conv2D(output_dim=output_dim, kernel=kernel)
+            self.conv = Conv2D(output_dim=output_dim, kernel=kernel, strides=self.strides, padding=self.padding)
 
     def call(self, inputs, train):
         net = self.conv(inputs)
